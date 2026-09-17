@@ -1,0 +1,122 @@
+name: Bearer-CLI Full Scan
+
+on:
+  workflow_call:
+    inputs:
+      minimum_severity:
+        description: Lowest severity to include in the scan.
+        required: false
+        type: string
+        default: high
+
+permissions:
+  contents: read
+
+env:
+  BEARER_VERSION: "2.1.1"
+  BEARER_LINUX_AMD64_SHA256: "6b79d315577fea8305dfe08577bea6ad53852a929cd24de9211d39750a194bbb"
+
+jobs:
+  scan:
+    name: Full scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Resolve severity threshold
+        id: policy
+        shell: bash
+        env:
+          MINIMUM_SEVERITY: ${{ inputs.minimum_severity }}
+        run: |
+          set -euo pipefail
+
+          case "${MINIMUM_SEVERITY}" in
+            critical) severities="critical" ;;
+            high) severities="critical,high" ;;
+            medium) severities="critical,high,medium" ;;
+            low) severities="critical,high,medium,low" ;;
+            all) severities="critical,high,medium,low,warning" ;;
+            *)
+              echo "::error::minimum_severity must be critical, high, medium, low, or all."
+              exit 2
+              ;;
+          esac
+
+          echo "severities=${severities}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check out selected branch
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Bearer-CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bin_dir="${RUNNER_TEMP}/bearer-bin"
+          archive="${RUNNER_TEMP}/bearer.tar.gz"
+          mkdir -p "${bin_dir}"
+
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            "https://github.com/Bearer/bearer/releases/download/v${BEARER_VERSION}/bearer_${BEARER_VERSION}_linux_amd64.tar.gz" \
+            --output "${archive}"
+          printf '%s  %s\n' "${BEARER_LINUX_AMD64_SHA256}" "${archive}" | sha256sum --check --strict -
+          tar -xzf "${archive}" -C "${bin_dir}" bearer
+
+          "${bin_dir}/bearer" version
+          echo "${bin_dir}" >> "${GITHUB_PATH}"
+
+      - name: Run Bearer-CLI
+        shell: bash
+        env:
+          SEVERITIES: ${{ steps.policy.outputs.severities }}
+        run: |
+          set -euo pipefail
+
+          bearer scan . \
+            --config-file=.bearer/bearer.yml \
+            --ignore-file=.bearer/bearer.ignore \
+            --scanner=sast,secrets \
+            --severity="${SEVERITIES}" \
+            --format=json \
+            --output="${RUNNER_TEMP}/bearer-results.json" \
+            --no-extract \
+            --hide-progress-bar \
+            --no-color \
+            --disable-domain-resolution \
+            --disable-version-check \
+            --exit-code=0
+
+          test -s "${RUNNER_TEMP}/bearer-results.json"
+
+      - name: Check out shared scripts
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          sparse-checkout: bearer/scripts
+          path: .bearer-toolkit
+          persist-credentials: false
+
+      - name: Write full scan report
+        shell: bash
+        env:
+          MINIMUM_SEVERITY: ${{ inputs.minimum_severity }}
+          REPORT_FILE: ${{ runner.temp }}/bearer-results.json
+          SUMMARY_FILE: ${{ runner.temp }}/bearer-summary.md
+        run: |
+          set -euo pipefail
+
+          echo "::group::Bearer-CLI findings"
+          node "${GITHUB_WORKSPACE}/.bearer-toolkit/bearer/scripts/bearer-summary.mjs" \
+            "${REPORT_FILE}" \
+            "${SUMMARY_FILE}" \
+            "${MINIMUM_SEVERITY}" \
+            "${GITHUB_REPOSITORY}" \
+            "${GITHUB_REF_NAME}"
+          echo "::endgroup::"
+
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
