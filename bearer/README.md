@@ -39,7 +39,7 @@ from the dispatch form.
 | `BEARER_ENFORCE` | unset | `true` reports findings as errors and fails the scan job. |
 
 `BEARER_ENFORCE` changes finding annotations from warnings to errors and fails
-the scan job. 
+the scan job.
 
 ## Results
 
