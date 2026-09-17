@@ -14,6 +14,14 @@ on:
         required: false
         type: boolean
         default: false
+      toolkit_repository:
+        description: Trusted repository containing the shared reporting script.
+        required: true
+        type: string
+      toolkit_ref:
+        description: Trusted ref containing the shared reporting script.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -148,8 +156,8 @@ jobs:
       - name: Check out shared scripts
         uses: actions/checkout@v7.0.1
         with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
+          repository: ${{ inputs.toolkit_repository }}
+          ref: ${{ inputs.toolkit_ref }}
           sparse-checkout: bearer/scripts
           path: .bearer-toolkit
           persist-credentials: false

@@ -16,3 +16,5 @@ jobs:
     with:
       minimum_severity: ${{ vars.BEARER_MIN_SEVERITY || 'high' }}
       enforce: ${{ vars.BEARER_ENFORCE == 'true' }}
+      toolkit_repository: docknetwork/engineering-toolkit
+      toolkit_ref: main

@@ -23,3 +23,5 @@ jobs:
     uses: docknetwork/engineering-toolkit/.github/workflows/bearer-full.yml@main
     with:
       minimum_severity: ${{ inputs.minimum_severity }}
+      toolkit_repository: docknetwork/engineering-toolkit
+      toolkit_ref: main
