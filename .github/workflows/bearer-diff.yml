@@ -89,9 +89,7 @@ jobs:
             echo
             echo "These files control what gets scanned and ignored. Confirm the change is intended before approving."
             echo
-            echo '```diff'
-            git diff --no-color "${range}" -- .bearer
-            echo '```'
+            git diff --no-color "${range}" -- .bearer | sed 's/^/    /'
           } >> "${GITHUB_STEP_SUMMARY}"
 
           while IFS= read -r -d '' path; do
